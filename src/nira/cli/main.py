@@ -93,6 +93,7 @@ def apply(
     from nira.ops.apply import apply_plan
 
     p = _load_plan(hc)
+    p.fleet_path = fleet
     results = apply_plan(p)
     failures = sum(1 for r in results if str(r.get("result", "")).lower() not in ("ok", "success", "applied", "skipped"))
     if json_output:

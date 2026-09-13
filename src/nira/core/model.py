@@ -56,6 +56,7 @@ class PlanEntry:
 class Plan:
     host: str
     entries: list[PlanEntry] = field(default_factory=list)
+    fleet_path: str | None = None  # set by CLI for apply-time host resolution
 
     def add(self, entry: PlanEntry) -> None:
         self.entries.append(entry)

@@ -53,6 +53,19 @@ def _resolve_host(plan: Plan) -> Any:
     """Resolve the plan's host to a pyinfra host data dict / inventory tuple."""
     from nira.ops.inventory import host_inventory
 
+    if not isinstance(plan.host, str):
+        return host_inventory(plan.host)
+    # plan.host holds the host name; look up the full HostConfig via env-provided
+    # fleet path carried on the plan when built by the CLI.
+    fleet = getattr(plan, "fleet_path", None)
+    if fleet:
+        from nira.core.model import load_hosts
+
+        for h in load_hosts(Path(fleet) / "inventory"):
+            if h.name == plan.host:
+                return host_inventory(h)
+    # no fleet context: pass the raw name through (tests/advanced callers
+    # monkeypatch host_inventory anyway)
     return host_inventory(plan.host)
 
 
