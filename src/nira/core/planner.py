@@ -16,26 +16,38 @@ def collect_facts(host: HostConfig) -> dict:
 
 
 def build_plan(host: HostConfig) -> Plan:
+    import nira.bundles as _bundles  # noqa: F401,PLC0415 - side effect: populate registry
     from nira.core.bundle import REGISTRY
     from nira.core.model import Op, Plan, PlanEntry, Status
 
     plan = Plan(host=host.name)
     facts = collect_facts(host)
     for bundle_name in host.bundles:
-        bundle = REGISTRY.get(bundle_name)
-        if bundle is None or not bundle.supports(host):
+        bundle_cls = REGISTRY.get(bundle_name)
+        if bundle_cls is None:
             plan.add(
                 PlanEntry(
                     bundle=bundle_name,
                     component="*",
                     op=Op.SKIP,
                     status=Status.SKIPPED,
-                    detail="bundle unavailable for this OS" if bundle else "unknown bundle",
+                    detail="unknown bundle",
                 )
             )
             continue
-        b = bundle()
-        for entry in b.plan(host, facts):
+        bundle = bundle_cls()
+        if not bundle.supports(host):
+            plan.add(
+                PlanEntry(
+                    bundle=bundle_name,
+                    component="*",
+                    op=Op.SKIP,
+                    status=Status.SKIPPED,
+                    detail="bundle unavailable for this OS",
+                )
+            )
+            continue
+        for entry in bundle.plan(host, facts):
             if entry.component in host.protected_components:
                 entry.status = Status.PROTECTED
                 entry.op = Op.VERIFY

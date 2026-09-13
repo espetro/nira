@@ -15,13 +15,55 @@ def _pkg_state(binary: str | None) -> bool:
     return shutil.which(binary) is not None if binary else False
 
 
+def _probe(binary: str, login: bool = False) -> bool:
+    """Probe binary presence, optionally via a login shell (picks up mise/brew PATHs)."""
+    try:
+        cmd = ["bash", "-lc", f"command -v {binary}"] if login else ["which", binary]
+        return (
+            subprocess.run(cmd, capture_output=True, text=True, timeout=15, check=False).returncode
+            == 0
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
 def _collect_local() -> dict[str, dict[str, Any]]:
-    """Cheap local fact collection (fast paths, no pyinfra host connection)."""
+    """Cheap local fact collection (fast paths, no pyinfra host connection).
+
+    Package facts are probed on demand via login-shell `command -v` (covers
+    brew/mise shims). Known package names come from a fixed candidate list
+    plus any names callers ask about through facts()."""
     facts: dict[str, dict[str, Any]] = {k: {} for k in KINDS}
     facts["custom"] = {
-        "nono": {"state": shutil.which("nono") is not None},
+        "nono": {"state": _probe("nono", login=True)},
     }
+    candidates = (
+        "mise", "git", "gh", "jq", "rg", "ugrep", "fd", "fzf", "ast-grep",
+        "ghgrab", "repomix", "opensrc", "ghx", "claude", "crush", "maki",
+        "uv", "pnpm", "node", "bun", "bifrost", "orca", "orcad", "oxmgr",
+        "sops", "age", "degoog", "degoog-mcp", "agent-vault", "nono",
+    )
+    facts["package"] = {name: _probe(name, login=True) for name in candidates}
+    facts["service"] = _local_services()
     return facts
+
+
+def _local_services() -> dict[str, dict[str, Any]]:
+    """LaunchAgent/LaunchDaemon + systemd presence for the local host."""
+    services: dict[str, dict[str, Any]] = {}
+    system = ("darwin", "Darwin")
+    try:
+        if system[0] == "darwin" or True:
+            out = subprocess.run(
+                ["launchctl", "list"], capture_output=True, text=True, timeout=15, check=False
+            ).stdout
+            for line in out.splitlines()[1:]:
+                parts = line.split()
+                if len(parts) >= 3:
+                    services[parts[2]] = {"state": "loaded", "pid": parts[0]}
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return services
 
 
 def collect_via_pyinfra(host: HostConfig) -> dict[str, dict[str, Any]]:
