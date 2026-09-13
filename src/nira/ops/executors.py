@@ -60,9 +60,45 @@ def _dispatch(state: Any, host_state: Any, entry: Any) -> None:
     elif kind == "secret":
         _secret(h, name, params)
     elif kind == "directory":
-        h.directory(name, present=True)
+        _directory(h, name, params)
+    elif kind == "custom":
+        _custom(h, name, params)
     else:
-        _service(h, name, params)
+        raise ValueError(f"entry {name}: unhandled kind {kind}")
+
+
+def _directory(h: Any, name: str, params: dict) -> None:
+    if "repo" in params:
+        h.git.repo(name, repo=params["repo"], present=True, update=True)
+    else:
+        h.directory(name, present=True)
+
+
+def _custom(h: Any, name: str, params: dict) -> None:
+    if params.get("mise"):
+        h.shell(f"mise use -g {params['tool']}")
+    elif params.get("type") == "user":
+        _macos_user(h, name)
+    elif params.get("relink_to"):
+        target = params["relink_to"]
+        cmd = rf"mkdir -p {name} && find {target} -maxdepth 1 -mindepth 1 -exec ln -sfn {{}} {name}/ \;"
+        h.shell(cmd)
+    elif params.get("check") == "binary-in-path":
+        if h.fact.command(f"command -v {name}") is None:
+            raise RuntimeError(f"{name} not in PATH after apply")
+    elif params.get("check") == "config-presence-only":
+        pass  # doctor verifies pairing; apply never mutates pairing state
+    else:
+        raise ValueError(f"custom component {name}: unknown params {sorted(params)}")
+
+
+def _macos_user(h: Any, name: str) -> None:
+    h.shell(
+        f"id -u {name} >/dev/null 2>&1 || sysadminctl -addUser {name} -home /Users/{name}",
+        _sudo=True,
+    )
+    h.shell(f"dscl . -create /Users/{name} IsHidden 1", _sudo=True)
+    h.shell(f"dseditgroup -o edit -a {name} -t user com.apple.access_ssh", _sudo=True)
 
 
 def _package(h: Any, name: str, params: dict) -> None:
