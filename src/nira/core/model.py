@@ -39,6 +39,8 @@ class PlanEntry:
     op: Op
     status: Status
     detail: str = ""
+    kind: str | None = None  # requirement kind for the executor (package/file/...)
+    params: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {

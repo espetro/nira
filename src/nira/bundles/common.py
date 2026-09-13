@@ -1,22 +1,22 @@
-"""Shared helpers for bundles."""
+"""Shared bundle helpers."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from nira.core.bundle import Requirement
-
 if TYPE_CHECKING:
     from nira.core.model import HostConfig
 
+from nira.core.bundle import Requirement
+
+
+def home(host: HostConfig) -> str:
+    """Home directory path on the target host (plan-time safe for ssh targets)."""
+    if host.local:
+        import os
+        return os.path.expanduser('~')
+    return f'/Users/{host.ssh_user}' if host.os == 'macos' else f'/home/{host.ssh_user}'
+
 
 def pkg(name: str) -> Requirement:
-    return Requirement(name=name, kind="package")
-
-
-def host_os(host: HostConfig) -> str:
-    return host.os
-
-
-# Protected component names: report-only, never mutated.
-PROTECTED = ("web-services", "brioso-", "xvfb-orca", "orca.service", "orcad")
+    return Requirement(name=name, kind='package')

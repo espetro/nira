@@ -7,11 +7,9 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from nira.core.model import HostConfig
-from pathlib import Path
-
+from nira.bundle_paths import home as host_home
 from nira.core.bundle import Bundle, Requirement, register
 
-BIFROST_DIR = Path.home() / ".config" / "bifrost"
 MAC_PLIST = "/Library/LaunchDaemons/io.bifrost.daemon.plist"
 LINUX_UNIT = "/etc/systemd/system/bifrost.service"
 
@@ -33,7 +31,7 @@ class BifrostStackBundle(Bundle):
             },
         )
         yield Requirement(
-            name=str(BIFROST_DIR / "config.json"),
+            name=f"{host_home(host)}/.config/bifrost/config.json",
             kind="file",
             params={
                 "template": "bifrost-config.json.j2",

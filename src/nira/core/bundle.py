@@ -55,6 +55,8 @@ class Bundle(ABC):
                 op=Op.INSTALL,
                 status=self._assess(req, facts),
                 detail="",
+                kind=req.kind,
+                params=dict(req.params),
             )
 
     def _assess(self, req: Requirement, facts: dict[str, Any]) -> Status:

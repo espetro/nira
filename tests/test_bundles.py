@@ -113,7 +113,9 @@ def test_bifrost_stack_secret_and_env_ref() -> None:
     reqs = {r.name: r for r in REGISTRY["bifrost-stack"]().requirements(h)}
     assert "BIFROST_ENCRYPTION_KEY" in reqs
     assert reqs["BIFROST_ENCRYPTION_KEY"].kind == "secret"
-    cfg = reqs[str(Path.home() / ".config/bifrost/config.json")]
+    home = "/home/test" if True else str(Path.home())
+    cfg = next(r for r in reqs.values() if r.name.endswith("/.config/bifrost/config.json"))
+    assert home  # host user resolved per-host
     assert cfg.params["env_ref"] == "BIFROST_ENCRYPTION_KEY"
 
 

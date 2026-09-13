@@ -16,7 +16,7 @@ def collect_facts(host: HostConfig) -> dict:
 
 
 def build_plan(host: HostConfig) -> Plan:
-    import nira.bundles as _bundles  # noqa: F401,PLC0415 - side effect: populate registry
+    import nira.bundles as _bundles  # noqa: F401 - side effect: populate registry
     from nira.core.bundle import REGISTRY
     from nira.core.model import Op, Plan, PlanEntry, Status
 

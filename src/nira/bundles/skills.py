@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from nira.core.model import HostConfig
-from pathlib import Path
 
+from nira.bundle_paths import home as host_home
 from nira.core.bundle import Bundle, Requirement, register
 
 AGENT_SKILLS_REPO = "https://github.com/josocjoq/agent-skills"
@@ -20,14 +20,14 @@ class SkillsBundle(Bundle):
     description = "skill asm and agent-skills checkout relinked into ~/.claude/skills"
 
     def requirements(self, host: HostConfig) -> Iterator[Requirement]:
-        home = Path.home()
+        home = host_home(host)
         yield Requirement(
-            name=str(home / "agent-skills"),
+            name=f"{home}/agent-skills",
             kind="directory",
             params={"repo": AGENT_SKILLS_REPO},
         )
         yield Requirement(
-            name=str(home / ".claude" / "skills"),
+            name=f"{home}/.claude/skills",
             kind="custom",
-            params={"relink_to": str(home / "agent-skills")},
+            params={"relink_to": f"{home}/agent-skills"},
         )
