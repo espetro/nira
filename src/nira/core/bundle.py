@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from nira.core.model import HostConfig, PlanEntry
+    from nira.core.model import HostConfig, PlanEntry, Status
 
 
 @dataclass
@@ -57,7 +57,7 @@ class Bundle(ABC):
                 detail="",
             )
 
-    def _assess(self, req: Requirement, facts: dict[str, Any]) -> "Status":  # noqa: F821
+    def _assess(self, req: Requirement, facts: dict[str, Any]) -> Status:
         from nira.core.model import Status
 
         found = facts.get(req.kind, {}).get(req.name)
