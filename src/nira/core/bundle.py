@@ -35,6 +35,7 @@ class Bundle(ABC):
     name: str = "abstract"
     description: str = ""
     os_support: tuple[str, ...] = ("macos", "linux")
+    priority: int = 50  # lower applies first (secret-broker = 0)
 
     def supports(self, host: "HostConfig") -> bool:
         return host.os in self.os_support
