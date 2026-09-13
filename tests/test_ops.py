@@ -7,7 +7,6 @@ from typing import Any
 
 import pytest
 
-import nira.ops.facts as facts_mod
 from nira.core.model import Op, Plan, PlanEntry, Status
 from nira.ops.apply import apply_plan, is_protected
 from nira.ops.doctor import CheckResult, run_checks
@@ -17,9 +16,13 @@ from nira.ops.facts import KINDS, collect
 def make_host(**kw: Any) -> Any:
     from nira.core.model import HostConfig
 
-    defaults = dict(
-        name="test", ssh_user="u", address="1.2.3.4", os="linux", local=False
-    )
+    defaults = {
+        "name": "test",
+        "ssh_user": "u",
+        "address": "1.2.3.4",
+        "os": "linux",
+        "local": False,
+    }
     defaults.update(kw)
     return HostConfig(**defaults)
 
@@ -57,7 +60,8 @@ def test_collect_delegates_to_pyinfra_collector(
 
 def test_local_host_facts_report_nono(monkeypatch: pytest.MonkeyPatch) -> None:
     # smoke: the local collector function itself, not touching real PATH assumptions
-    from nira.ops.pyinfra_facts import KINDS as PK, _collect_local
+    from nira.ops.pyinfra_facts import KINDS as PK
+    from nira.ops.pyinfra_facts import _collect_local
 
     assert set(_collect_local()) <= set(PK) | set(KINDS)
 
@@ -157,9 +161,10 @@ def test_check_result_shape() -> None:
 
 
 def test_run_checks_local_linux(monkeypatch: pytest.MonkeyPatch) -> None:
-    import nira.ops.doctor as doc
 
-    monkeypatch.setattr(doc.shutil, "which", lambda b: None)
+    import shutil
+
+    monkeypatch.setattr(shutil, "which", lambda b: None)
     host = make_host(os="linux", local=True)
     checks = run_checks(host)
     names = [c.name for c in checks]

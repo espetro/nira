@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from pathlib import Path
 
 import nira.bundles  # noqa: F401  populate registry
-from nira.core.bundle import REGISTRY, Requirement
+from nira.core.bundle import REGISTRY
 from nira.core.model import HostConfig, Op, Status
 
 

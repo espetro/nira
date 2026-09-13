@@ -5,17 +5,17 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from nira.core.model import HostConfig, Plan, PlanEntry
+    from nira.core.model import HostConfig, Plan
 
 
-def collect_facts(host: "HostConfig") -> dict:
+def collect_facts(host: HostConfig) -> dict:
     """Collect facts via pyinfra (two-phase). Implemented in nira.ops.facts."""
-    from nira.ops.facts import collect  # noqa: PLC0415
+    from nira.ops.facts import collect
 
     return collect(host)
 
 
-def build_plan(host: "HostConfig") -> "Plan":
+def build_plan(host: HostConfig) -> Plan:
     from nira.core.bundle import REGISTRY
     from nira.core.model import Op, Plan, PlanEntry, Status
 
