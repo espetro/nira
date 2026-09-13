@@ -45,7 +45,7 @@ def execute(host: tuple[str, dict[str, Any]], entries: list[Any], results: list[
 
 
 def _dispatch(state: Any, host_state: Any, entry: Any) -> None:
-    from pyinfra import host as h
+    h = host_state
 
     name = entry.component
     params = getattr(entry, "params", {}) or {}
