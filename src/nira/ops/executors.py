@@ -11,7 +11,6 @@ def execute(host: tuple[str, dict[str, Any]], entries: list[Any], results: list[
     Uses the pyinfra API in two-phase mode; secrets are never written to disk
     (sops exec-env / sops -d piped). Errors are captured per entry.
     """
-    from pyinfra import host as host_state
     from pyinfra.api import Config, Inventory, State
     from pyinfra.api.connect import connect_all
     from pyinfra.api.operations import run_ops
@@ -20,6 +19,7 @@ def execute(host: tuple[str, dict[str, Any]], entries: list[Any], results: list[
     inventory = Inventory(([target], data))
     state = State(inventory=inventory, config=Config())
     connect_all(state)
+    host_state = next(iter(inventory.hosts.values()))
 
     for entry in entries:
         try:
