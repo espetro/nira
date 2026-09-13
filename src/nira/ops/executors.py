@@ -17,7 +17,7 @@ def execute(host: tuple[str, dict[str, Any]], entries: list[Any], results: list[
     from pyinfra.api.operations import run_ops
 
     target, data = host
-    inventory = Inventory([(target, ["nira"], data)])
+    inventory = Inventory([(([target], data), ["nira"])])
     state = State(inventory=inventory, config=Config())
     connect_all(state)
 
