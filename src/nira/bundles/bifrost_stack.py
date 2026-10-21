@@ -7,8 +7,9 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from nira.core.model import HostConfig
-from nira.bundle_paths import home as host_home
+from nira.bundle_paths import hp
 from nira.core.bundle import Bundle, Requirement, register
+from nira.core.protect import is_protected
 
 MAC_PLIST = "/Library/LaunchDaemons/io.bifrost.daemon.plist"
 LINUX_UNIT = "/etc/systemd/system/bifrost.service"
@@ -20,7 +21,16 @@ class BifrostStackBundle(Bundle):
     description = "bifrost gateway: binary, encryption key secret, config.json"
 
     def requirements(self, host: HostConfig) -> Iterator[Requirement]:
-        yield Requirement(name="bifrost", kind="package")
+        # mise github backend (see core.packages.MISE_SPECS["bifrost"]); on hosts that carry a
+        # protected, pre-existing install (systemd unit) it is probed, never installed.
+        yield Requirement(
+            name="bifrost",
+            kind="package",
+            params={
+                "scope": "agent",
+                "verify_only": is_protected("bifrost", host.protected_components),
+            },
+        )
         yield Requirement(
             name="BIFROST_ENCRYPTION_KEY",
             kind="secret",
@@ -31,9 +41,10 @@ class BifrostStackBundle(Bundle):
             },
         )
         yield Requirement(
-            name=f"{host_home(host)}/.config/bifrost/config.json",
+            name=hp(".config/bifrost/config.json"),
             kind="file",
             params={
+                "scope": "agent",
                 "template": "bifrost-config.json.j2",
                 # config references the secret via env var, never inline value
                 "env_ref": "BIFROST_ENCRYPTION_KEY",
@@ -41,13 +52,13 @@ class BifrostStackBundle(Bundle):
         )
         if host.os == "macos":
             yield Requirement(
-                name="bifrost-daemon",
+                name="io.bifrost.daemon",  # launchd label; must match the facts key
                 kind="service",
                 params={"plist_path": MAC_PLIST, "bootstrap": True},
             )
         else:
             yield Requirement(
-                name="bifrost-daemon",
+                name="bifrost",  # systemd unit name; must match the facts key
                 kind="service",
                 params={"unit_path": LINUX_UNIT},
             )

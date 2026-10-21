@@ -15,6 +15,9 @@ from nira.core.bundle import Bundle, Requirement, register
 class OrcaBundle(Bundle):
     name = "orca"
     description = "orca/orcad binaries and pairing-state presence check"
+    # Decision: the fleet is moving away from Orca (github:stablyai/orca). Code kept, never
+    # selected: the planner reports it as skipped ("disabled").
+    enabled = False
 
     def requirements(self, host: HostConfig) -> Iterator[Requirement]:
         yield Requirement(name="orca", kind="package")

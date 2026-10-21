@@ -9,6 +9,7 @@ from nira.bundles import (  # noqa: F401
     bifrost_stack,
     core,
     macos_desktop,
+    mcp,
     media_audio,
     orca,
     search_gateway,

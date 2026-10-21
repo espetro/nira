@@ -1,18 +1,21 @@
-"""Per-host path resolution helpers (plan-time safe for remote hosts)."""
+"""Per-host path helpers.
+
+Paths are symbolic (``{{ home }}/...``) at plan time; the home of the run-as
+user is resolved at apply time (see nira.core.paths / nira.core.render_tpl).
+"""
 
 from __future__ import annotations
 
-import os
-from typing import TYPE_CHECKING
+from nira.core.paths import HostPath
 
-if TYPE_CHECKING:
-    from nira.core.model import HostConfig
+__all__ = ["HostPath", "home", "hp"]
 
 
-def home(host: HostConfig) -> str:
-    """Home directory path on the target host."""
-    if host.local:
-        return os.path.expanduser('~')
-    if host.os == 'macos':
-        return f'/Users/{host.ssh_user}'
-    return f'/home/{host.ssh_user}'
+def home(host: object = None) -> str:
+    """Symbolic home token (host-independent on purpose)."""
+    return str(HostPath.home(""))
+
+
+def hp(rel: str) -> str:
+    """Symbolic string for a path under the run-as user's home."""
+    return str(HostPath.home(rel))

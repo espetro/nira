@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from nira.core.model import HostConfig
-from nira.bundle_paths import home as host_home
+from nira.bundle_paths import hp
 from nira.core.bundle import Bundle, Requirement, register
 
 VERBATIM = ("AGENTS.md", "TOOLING.md", "RTK.md")
@@ -20,12 +20,12 @@ class AgentConfigBundle(Bundle):
     description = "Global agent instruction files"
 
     def requirements(self, host: HostConfig) -> Iterator[Requirement]:
-        global_dir = f"{host_home(host)}/.config/agent"
+        global_dir = hp(".config/agent")
         for f in VERBATIM:
             yield Requirement(
-                name=f"{global_dir}/{f}", kind="file", params={"verbatim": True}
+                name=f"{global_dir}/{f}", kind="file", params={"verbatim": True, "scope": "agent"}
             )
         for f, params in TEMPLATED.items():
             yield Requirement(
-                name=f"{global_dir}/{f}", kind="file", params={"template": params["template"]}
+                name=f"{global_dir}/{f}", kind="file", params={"template": params["template"], "scope": "agent"}
             )

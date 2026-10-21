@@ -127,3 +127,14 @@ class TestLoaders:
         inv.mkdir()
         (inv / "notes.txt").write_text("HOSTS = ['garbage']")
         assert load_hosts(inv) == []
+
+
+def test_hostconfig_from_dict_carries_fleet_context():
+    h = HostConfig.from_dict(
+        {
+            "name": "a", "ssh_user": "u", "address": "a", "os": "linux",
+            "fleet_path": "/f", "overrides": {"mcp_enable": ["x"]},
+        }
+    )
+    assert h.fleet_path == "/f" and h.overrides == {"mcp_enable": ["x"]}
+    assert HostConfig("b", "u", "b", "linux").overrides == {}

@@ -47,7 +47,7 @@ def test_collect_dry_never_imports_pyinfra(monkeypatch: pytest.MonkeyPatch) -> N
 def test_collect_delegates_to_pyinfra_collector(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake(host: Any) -> dict:
+    def fake(host: Any, requirements: Any = None) -> dict:
         return {"package": {"git": True}}
 
     monkeypatch.setattr(
@@ -58,12 +58,53 @@ def test_collect_delegates_to_pyinfra_collector(
     assert "file" in facts  # kinds guaranteed present
 
 
-def test_local_host_facts_report_nono(monkeypatch: pytest.MonkeyPatch) -> None:
-    # smoke: the local collector function itself, not touching real PATH assumptions
-    from nira.ops.pyinfra_facts import KINDS as PK
-    from nira.ops.pyinfra_facts import _collect_local
+def test_collector_probes_every_kind_and_distinguishes_ssh_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import subprocess
 
-    assert set(_collect_local()) <= set(PK) | set(KINDS)
+    from nira.core.bundle import Requirement
+    from nira.ops import pyinfra_facts as pf
+
+    reqs = [
+        Requirement("git", "package"),
+        Requirement("/etc/x", "file"),
+        Requirement("/opt/d", "directory"),
+        Requirement("svc", "service"),
+        Requirement("S", "secret", {"sops_file": "secrets/a.yaml"}),
+        Requirement("mise:uv", "custom", {"mise": True, "tool": "uv"}),
+    ]
+    rcs = [0, 1, 2, 0, 1, 0]
+    out = "".join(f"__NIRA__ {i} {rc}\n" for i, rc in enumerate(rcs))
+    seen: dict[str, Any] = {}
+
+    def ok_run(argv: list[str], **kw: Any) -> Any:
+        seen["script"] = kw["input"]
+        return subprocess.CompletedProcess(argv, 0, stdout=out, stderr="")
+
+    monkeypatch.setattr(subprocess, "run", ok_run)
+    facts = pf.collect_via_pyinfra(make_host(), reqs)
+    assert facts["package"]["git"] is True
+    assert facts["file"]["/etc/x"] is False
+    assert isinstance(facts["directory"]["/opt/d"], dict)  # present but drifted
+    assert facts["service"]["svc"] is True  # active unit reports OK
+    assert facts["custom"]["mise:uv"] is True
+    assert seen["script"].count("__NIRA__") == len(reqs)
+    assert "mise where uv" in seen["script"]  # mise tools probed via mise, not dpkg
+
+    def ssh_dead(argv: list[str], **_kw: Any) -> Any:
+        return subprocess.CompletedProcess(argv, 255, stdout="", stderr="no route")
+
+    monkeypatch.setattr(subprocess, "run", ssh_dead)
+    with pytest.raises(pf.HostUnreachable):
+        pf.collect_via_pyinfra(make_host(), reqs)
+
+    def broken_probe(argv: list[str], **_kw: Any) -> Any:
+        return subprocess.CompletedProcess(argv, 0, stdout="__NIRA__ 0 127\n", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", broken_probe)
+    with pytest.raises(pf.ProbeError):
+        pf.collect_via_pyinfra(make_host(), reqs[:1])
 
 
 # ---------------- apply_plan: gap-fill semantics ----------------
@@ -132,7 +173,7 @@ def test_apply_runs_executor_for_changed_only(
 ) -> None:
     called: list[str] = []
 
-    def fake_execute(host: Any, entries: list, results: list) -> None:
+    def fake_execute(host: Any, entries: list, results: list, verify: bool = True) -> None:
         called.extend(e.component for e in entries)
         results.extend(
             {"bundle": e.bundle, "component": e.component, "result": "changed", "detail": ""}
@@ -160,15 +201,35 @@ def test_check_result_shape() -> None:
     assert cr.name == "ssh" and cr.ok and cr.detail == "fine"
 
 
-def test_run_checks_local_linux(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_run_checks_runs_against_target_not_local(monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
 
-    import shutil
+    calls: list[list[str]] = []
 
-    monkeypatch.setattr(shutil, "which", lambda b: None)
-    host = make_host(os="linux", local=True)
+    def fake_run(argv: list[str], **_kw: Any) -> Any:
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, stdout="running", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    host = make_host(os="linux", local=False, address="box.ts.net", ssh_user="deb")
     checks = run_checks(host)
     names = [c.name for c in checks]
     assert {"ssh", "tailscale", "systemd", "orca-pairing", "sops"} <= set(names)
     assert all(isinstance(c, CheckResult) for c in checks)
-    ssh = next(c for c in checks if c.name == "ssh")
-    assert ssh.ok  # local host: no ssh needed
+    assert calls and all(c[0] == "ssh" and "deb@box.ts.net" in c for c in calls)
+    assert not any("/Users/" in " ".join(c) for c in calls)  # no hardcoded home
+
+
+def test_run_checks_local_host_uses_local_shell(monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
+
+    calls: list[list[str]] = []
+
+    def fake_run(argv: list[str], **_kw: Any) -> Any:
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, stdout="running", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    checks = run_checks(make_host(os="linux", local=True))
+    assert next(c for c in checks if c.name == "ssh").ok
+    assert all(c[0] == "bash" for c in calls)

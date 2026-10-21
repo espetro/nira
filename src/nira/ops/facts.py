@@ -2,11 +2,12 @@
 
 state is True (satisfied), False (missing) or dict (present but drifted).
 Dry mode returns everything missing so tests and plan previews never touch
-hosts. pyinfra is imported lazily; in dry mode it is never imported at all.
+hosts. Probing is driven by the requirements the host's bundles declare.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -19,14 +20,16 @@ def _empty() -> dict[str, dict[str, Any]]:
     return {k: {} for k in KINDS}
 
 
-def collect(host: HostConfig, dry: bool = False) -> dict:
+def collect(
+    host: HostConfig, dry: bool = False, requirements: Iterable[Any] | None = None
+) -> dict:
     """Collect host facts. dry=True -> everything reported missing."""
     if dry:
         return _empty()
     from nira.ops.pyinfra_facts import collect_via_pyinfra
 
-    facts = collect_via_pyinfra(host)
-    # guarantee all kinds present even if pyinfra collector skipped some
+    facts = collect_via_pyinfra(host, requirements)
+    # guarantee all kinds present even if the collector skipped some
     for k in KINDS:
         facts.setdefault(k, {})
     return facts
