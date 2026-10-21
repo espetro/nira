@@ -13,6 +13,8 @@ import typer
 
 from nira.cli.render import render_plan, render_results
 from nira.core.model import HostConfig, Plan, Status
+from nira.core.protect import is_protected
+from nira.core.results import is_success
 
 app = typer.Typer(help="nira: manifest-first, idempotent fleet replicator", no_args_is_help=True)
 
@@ -49,9 +51,18 @@ def _resolve_host(name: str, fleet_path: Path) -> HostConfig:
 
 
 def _load_plan(host: HostConfig) -> Plan:
+    from nira.core.bundle import RequirementError
     from nira.core.planner import build_plan
+    from nira.ops.pyinfra_facts import HostUnreachable, ProbeError
 
-    return build_plan(host)
+    try:
+        return build_plan(host)
+    except HostUnreachable as exc:
+        typer.secho(f"host unreachable: {exc}", fg="red", err=True)
+        raise typer.Exit(code=1) from exc
+    except (ProbeError, RequirementError) as exc:
+        typer.secho(f"cannot plan {host.name}: {exc}", fg="red", err=True)
+        raise typer.Exit(code=1) from exc
 
 
 def _ok(failures: int) -> None:
@@ -60,11 +71,25 @@ def _ok(failures: int) -> None:
 
 @app.command()
 def plan(
-    host: str = typer.Option(..., "--host", help="Host name from inventory"),
+    host: str | None = typer.Option(None, "--host", help="Host name from inventory"),
     fleet: str = FleetOpt,
     json_output: bool = typer.Option(False, "--json"),
+    all_hosts: bool = typer.Option(False, "--all-hosts", help="Every host in the inventory"),
+    check: bool = typer.Option(
+        False, "--check", help="With --all-hosts: offline render/validate, no ssh"
+    ),
+    probe: bool = typer.Option(False, "--probe", help="With --check: also probe hosts over ssh"),
 ) -> None:
     """Show the gap between manifest and host state. Installs nothing."""
+    if all_hosts or check or probe:
+        if not (all_hosts and check) or host:
+            typer.secho("use: plan --all-hosts --check [--probe] (without --host)", fg="red", err=True)
+            raise typer.Exit(code=2)
+        _plan_check(Path(fleet), json_output, probe)
+        return
+    if not host:
+        typer.secho("missing option '--host' (or use --all-hosts --check)", fg="red", err=True)
+        raise typer.Exit(code=2)
     p = _load_plan(_resolve_host(host, Path(fleet)))
     if json_output:
         typer.echo(p.to_json())
@@ -73,12 +98,36 @@ def plan(
     _ok(len(p.changes))
 
 
+def _plan_check(fleet: Path, json_output: bool, probe: bool) -> None:
+    from nira.cli.check import check_fleet
+    from nira.cli.render import render_check
+
+    report = check_fleet(fleet, probe=probe)
+    if json_output:
+        typer.echo(
+            json.dumps(
+                {
+                    "hosts": report.hosts,
+                    "errors": len(report.errors),
+                    "issues": [i.to_dict() for i in report.issues],
+                },
+                indent=2,
+            )
+        )
+    else:
+        render_check(report)
+    _ok(len(report.errors))
+
+
 @app.command()
 def apply(
     host: str = typer.Option(..., "--host"),
     fleet: str = FleetOpt,
     json_output: bool = typer.Option(False, "--json"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Plan only; apply nothing"),
+    verify: bool = typer.Option(
+        True, "--verify/--no-verify", help="Verify every entry after applying (default on)"
+    ),
 ) -> None:
     """Apply only the gap from plan. Re-run must produce zero changes."""
     hc = _resolve_host(host, Path(fleet))
@@ -94,8 +143,9 @@ def apply(
 
     p = _load_plan(hc)
     p.fleet_path = fleet
-    results = apply_plan(p)
-    failures = sum(1 for r in results if str(r.get("result", "")).lower() not in ("ok", "success", "applied", "skipped"))
+    p.protected_patterns = tuple(hc.protected_components)
+    results = apply_plan(p, verify=verify)
+    failures = sum(1 for r in results if not is_success(r.get("result", "")))
     if json_output:
         typer.echo(json.dumps({"host": p.host, "failures": failures, "results": results}, indent=2))
     else:
@@ -114,7 +164,8 @@ def assess(
     """Assess drifted pre-existing services; report adoption actions (nothing applied)."""
     p = _load_plan(_resolve_host(host, Path(fleet)))
     drifted = [e for e in p.entries if e.status == Status.DRIFTED]
-    protected = [e for e in drifted if e.component in (_resolve_host(host, Path(fleet)).protected_components)]
+    hc = _resolve_host(host, Path(fleet))
+    protected = [e for e in drifted if is_protected(e.component, hc.protected_components)]
     adoptable = [e for e in drifted if e not in protected]
 
     if protected and not force:

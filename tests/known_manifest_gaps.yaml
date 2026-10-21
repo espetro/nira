@@ -1,0 +1,45 @@
+# Known manifest <-> Python-bundle disagreements (fleet manifest.yaml vs nira REGISTRY).
+# tests/test_manifest.py fails on any disagreement NOT listed here, and reports
+# (without failing) entries that no longer match anything: delete those as the
+# gaps get closed. bundle/kind/item are fnmatch globs. Every entry needs a reason.
+#
+# Product decisions pending are tagged DECISION; mechanical drift is tagged DRIFT.
+gaps:
+  # --- bundles present in Python only
+  - {bundle: macos-desktop, kind: bundle-missing-in-manifest, item: "*", reason: "DECISION: add to fleet manifest or leave Python-only"}
+  - {bundle: media-audio, kind: bundle-missing-in-manifest, item: "*", reason: "DECISION: add to fleet manifest or leave Python-only"}
+
+  - {bundle: mcp, kind: bundle-missing-in-manifest, item: "*", reason: "DRIFT: new mcp bundle; add to fleet manifest"}
+
+  # --- agent-config: manifest installs to ~/X.md, bundle to ~/.config/agent/X.md
+  - {bundle: agent-config, kind: file-dest-mismatch, item: "*", reason: "DECISION: which destination do agents read (~/AGENTS.md vs ~/.config/agent/AGENTS.md)?"}
+
+  # --- agent-runtimes
+  - {bundle: agent-runtimes, kind: mise-tool-uncovered, item: python, reason: "DECISION: manifest wants python via mise; bundle MISE_TOOLS has none"}
+  - {bundle: agent-runtimes, kind: extra-in-bundle, item: "mise:*", reason: "DRIFT: bundle installs bun/crush/maki/pnpm/uv; manifest lists node/python/claude only"}
+
+  # --- bifrost-stack
+  - {bundle: bifrost-stack, kind: file-uncovered, item: "~/.config/bifrost/config.db", reason: "DECISION: protected runtime state, bundle manages config.json only; keep as manifest-only protected marker?"}
+  - {bundle: bifrost-stack, kind: extra-in-bundle, item: "service:*", reason: "DRIFT: manifest has no services list for bifrost"}
+
+  # --- core
+  - {bundle: core, kind: package-uncovered, item: "*", reason: "DECISION: manifest lists jq/rsync in core; bundle BASE is mise+git (jq lives in search-retrieval)"}
+  - {bundle: core, kind: tool-uncovered, item: uv, reason: "DECISION: uv is installed by agent-runtimes in the bundle; manifest puts it in core"}
+  - {bundle: core, kind: file-uncovered, item: "~/.config/age/age.key", reason: "DECISION: age key placement (secret-broker owns age keys in the bundle?)"}
+
+  # --- search-gateway / search-retrieval
+  - {bundle: search-gateway, kind: package-uncovered, item: tailscale, reason: "DECISION: bundle does not install tailscale"}
+  - {bundle: search-gateway, kind: extra-in-bundle, item: "*", reason: "DRIFT: manifest lacks degoog-mcp / degoog service"}
+  - {bundle: search-retrieval, kind: extra-in-bundle, item: "*", reason: "DRIFT: manifest packages list is empty; bundle TOOLS is the source"}
+
+  # --- secret-broker
+  - {bundle: secret-broker, kind: package-uncovered, item: "*", reason: "DECISION: age/sops not modelled in the bundle (agent-vault + sops file instead)"}
+  - {bundle: secret-broker, kind: file-uncovered, item: "*", reason: "DECISION: sops key file / .sops.yaml distribution not modelled in the bundle"}
+  - {bundle: secret-broker, kind: extra-in-bundle, item: "service:*", reason: "DRIFT: agent-vault service not in manifest"}
+
+  # --- services-mini
+  - {bundle: services-mini, kind: package-uncovered, item: oxmgr, reason: "DECISION: manifest wants oxmgr; bundle only has own-agents user + mcp-sim"}
+
+  # --- skills
+  - {bundle: skills, kind: repo-url-mismatch, item: "*", reason: "DECISION: espetro/agent-skills (manifest) vs josocjoq/agent-skills (bundle) owner"}
+  - {bundle: skills, kind: repo-dest-mismatch, item: "*", reason: "DECISION: ~/.agents/skills (manifest) vs ~/agent-skills (bundle) checkout dir"}

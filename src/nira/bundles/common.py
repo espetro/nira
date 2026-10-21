@@ -7,15 +7,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from nira.core.model import HostConfig
 
+from nira.bundle_paths import home as _home
 from nira.core.bundle import Requirement
 
 
 def home(host: HostConfig) -> str:
-    """Home directory path on the target host (plan-time safe for ssh targets)."""
-    if host.local:
-        import os
-        return os.path.expanduser('~')
-    return f'/Users/{host.ssh_user}' if host.os == 'macos' else f'/home/{host.ssh_user}'
+    """Symbolic home of the run-as user (resolved at apply time)."""
+    return _home(host)
 
 
 def pkg(name: str) -> Requirement:

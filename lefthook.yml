@@ -1,0 +1,8 @@
+pre-commit:
+  parallel: true
+  commands:
+    ruff:
+      glob: "*.py"
+      run: uv run ruff check src tests
+    tests:
+      run: uv run pytest -q -m "not integration"

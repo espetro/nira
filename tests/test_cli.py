@@ -141,7 +141,7 @@ class TestApply:
 
     def test_apply_success(self, fleet, patch_planner):
         results = [
-            {"bundle": "base", "component": "ripgrep", "result": "applied", "detail": ""},
+            {"bundle": "base", "component": "ripgrep", "result": "changed", "detail": ""},
             {"bundle": "svc", "component": "postgres", "result": "skipped", "detail": "protected"},
         ]
         with patch("nira.ops.apply.apply_plan", return_value=results) as m:

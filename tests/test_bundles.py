@@ -120,10 +120,11 @@ def test_bifrost_stack_secret_and_env_ref() -> None:
 
 
 def test_bifrost_service_gating_by_os() -> None:
+    svc_names = {"macos": "io.bifrost.daemon", "linux": "bifrost"}
     mac = list(REGISTRY["bifrost-stack"]().requirements(host("macos")))
     lin = list(REGISTRY["bifrost-stack"]().requirements(host("linux")))
-    svc_mac = next(r for r in mac if r.name == "bifrost-daemon")
-    svc_lin = next(r for r in lin if r.name == "bifrost-daemon")
+    svc_mac = next(r for r in mac if r.name == svc_names["macos"] and r.kind == "service")
+    svc_lin = next(r for r in lin if r.name == svc_names["linux"] and r.kind == "service")
     assert "plist_path" in svc_mac.params
     assert "unit_path" in svc_lin.params
 
@@ -175,7 +176,7 @@ def test_default_plan_assesses_facts() -> None:
 def test_plan_drifted_when_fact_is_dict() -> None:
     b = REGISTRY["agent-config"]()
     h = host("macos")
-    req = next(b.requirements(h))
+    req = next(b.resolved(h))
     facts = {"file": {req.name: {"drift": "hash differs"}}}
     entries = list(b.plan(h, facts))
     assert entries[0].status == Status.DRIFTED

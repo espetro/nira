@@ -7,7 +7,10 @@ from typing import TYPE_CHECKING
 from rich.console import Console
 from rich.table import Table
 
+from nira.core.results import is_success
+
 if TYPE_CHECKING:
+    from nira.cli.check import CheckReport
     from nira.core.model import Plan
 
 _STATUS_MARKS = {
@@ -52,13 +55,26 @@ def render_results(results: list[dict], console: Console | None = None) -> None:
     table.add_column("bundle", style="cyan")
     table.add_column("component")
     table.add_column("result")
+    table.add_column("verify")
     table.add_column("detail", style="dim")
     for r in results:
-        ok = str(r.get("result", "")).lower() in ("ok", "success", "applied", "skipped")
+        ok = is_success(r.get("result", ""))
         table.add_row(
             r.get("bundle", ""),
             r.get("component", ""),
             f"[green]{r.get('result', '')}[/]" if ok else f"[red]{r.get('result', '')}[/]",
+            r.get("verify", ""),
             r.get("detail", ""),
         )
     console.print(table)
+
+
+def render_check(report: CheckReport) -> None:
+    """Print check issues (plain lines so CI logs stay greppable) and a summary."""
+    for i in report.issues:
+        if i.severity != "info":
+            print(i)
+    errors = len(report.errors)
+    warns = sum(1 for i in report.issues if i.severity == "warning")
+    verdict = "FAILED" if errors else "ok"
+    print(f"check {verdict}: {report.hosts} host(s), {errors} error(s), {warns} warning(s)")
